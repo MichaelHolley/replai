@@ -38,6 +38,12 @@
     else window.api.dismiss()
   }
 
+  // Which error kinds are fixed in Settings (bad/missing key, or a model swap).
+  const showSettingsAction = $derived(
+    phase === 'error' &&
+      (error?.kind === 'auth' || error?.kind === 'no_key' || error?.kind === 'model')
+  )
+
   function handleStream(e: StreamEvent): void {
     switch (e.type) {
       case 'start':
@@ -142,7 +148,17 @@
     {#if phase === 'requesting'}
       <span class="shimmer">Thinking…</span>
     {:else if phase === 'error' && error}
-      <span class="err-kind">{error.kind}</span><span>{error.message}</span>
+      <div class="err-msg">
+        <span class="err-kind">{error.kind}</span><span>{error.message}</span>
+      </div>
+      <div class="err-actions">
+        <button type="button" class="mini primary" onclick={submit}>Retry</button>
+        {#if showSettingsAction}
+          <button type="button" class="mini" onclick={() => window.api.openSettings()}>
+            Open Settings
+          </button>
+        {/if}
+      </div>
     {:else if reply}
       <span class="reply-text">{reply}</span>{#if phase === 'streaming'}<span class="caret"></span>{/if}
     {:else if phase === 'input'}
@@ -257,6 +273,26 @@
     background: color-mix(in srgb, var(--danger) 25%, transparent);
     font-size: 11px;
     text-transform: uppercase;
+  }
+  .err-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .mini {
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    cursor: pointer;
+  }
+  .mini.primary {
+    color: white;
+    background: var(--accent);
+    border-color: var(--accent);
   }
   .shimmer {
     color: var(--muted);

@@ -90,6 +90,7 @@ export const IPC = {
   SettingsSaveKey: 'settings:save-key',
   SettingsSaveConfig: 'settings:save-config',
   SettingsValidateKey: 'settings:validate-key',
+  SettingsOpen: 'settings:open',
   // onboarding
   PermissionStatus: 'permission:status',
   PermissionOpenPrefs: 'permission:open-prefs',

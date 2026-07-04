@@ -53,6 +53,9 @@ const api = {
   saveConfig(config: Partial<AppConfig>): Promise<AppConfig> {
     return ipcRenderer.invoke(IPC.SettingsSaveConfig, config)
   },
+  openSettings(): void {
+    ipcRenderer.send(IPC.SettingsOpen)
+  },
 
   // --- Onboarding ---
   getPermissionStatus(): Promise<string> {

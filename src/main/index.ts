@@ -1,4 +1,4 @@
-import { app, globalShortcut, ipcMain, clipboard, Notification } from 'electron'
+import { app, globalShortcut, ipcMain, clipboard, systemPreferences, Notification } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { electronApp, is } from '@electron-toolkit/utils'
 import { CaptureService } from './capture'
@@ -20,6 +20,10 @@ import type {
 /** Global hotkey (plan default). Accelerator + human-readable label. */
 const HOTKEY_ACCELERATOR = 'CommandOrControl+Shift+R'
 const HOTKEY_LABEL = '⌘⇧R'
+
+/** Deep link to the Screen Recording pane in System Settings. */
+const SCREEN_PREFS_URL =
+  'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'
 
 /** In-memory working state for the current capture (never persisted). */
 interface Session {
@@ -44,16 +48,30 @@ class AppController {
 
   private session: Session | null = null
   private currentAbort: AbortController | null = null
+  private permissionGranted = false
+  private pollTimer: ReturnType<typeof setInterval> | null = null
 
   start(): void {
-    // Pre-create the (hidden) panel so its renderer is loaded before first use.
+    this.registerIpc()
+    this.tray.init(HOTKEY_LABEL, true)
+
+    // Permission gate BEFORE hotkey registration (plan Milestone 5). Screen
+    // Recording cannot be prompted programmatically — we deep-link + poll.
+    this.permissionGranted = systemPreferences.getMediaAccessStatus('screen') === 'granted'
+    if (!this.permissionGranted) {
+      this.showOnboarding()
+      return
+    }
+
+    this.enableCapture()
+  }
+
+  /** Wires up the panel + hotkey once screen permission is confirmed. */
+  private enableCapture(): void {
     const panel = this.wm.getPanel()
     panel.on('hide', () => this.clearSession())
-
-    this.registerIpc()
-
     const hotkeyOk = this.registerHotkey()
-    this.tray.init(HOTKEY_LABEL, hotkeyOk)
+    this.tray.setHotkeyState(hotkeyOk)
   }
 
   // --- Hotkey ---
@@ -73,6 +91,10 @@ class AppController {
   // --- Capture ---
 
   private async triggerCapture(): Promise<void> {
+    if (!this.permissionGranted) {
+      this.showOnboarding()
+      return
+    }
     if (this.capture.isCapturing || this.wm.isPanelVisible()) return
     const payload = await this.capture.capture()
     if (!payload) return // clean cancel — do nothing
@@ -182,6 +204,47 @@ class AppController {
       IPC.SettingsSaveConfig,
       (_e, config: Partial<AppConfig>): AppConfig => this.settings.setConfig(config)
     )
+    ipcMain.on(IPC.SettingsOpen, () => this.wm.showSettings())
+
+    // Onboarding / permissions
+    ipcMain.handle(IPC.PermissionStatus, () => this.screenStatus())
+    ipcMain.on(IPC.PermissionOpenPrefs, () => WindowManager.openExternal(SCREEN_PREFS_URL))
+    ipcMain.on(IPC.PermissionRelaunch, () => {
+      app.relaunch()
+      app.exit(0)
+    })
+  }
+
+  private screenStatus(): string {
+    return systemPreferences.getMediaAccessStatus('screen')
+  }
+
+  // --- Onboarding ---
+
+  private showOnboarding(): void {
+    const win = this.wm.showOnboarding()
+    win.on('closed', () => this.stopPermissionPoll())
+    this.startPermissionPoll()
+  }
+
+  /** Polls Screen Recording status every 2s and pushes it to the onboarding UI. */
+  private startPermissionPoll(): void {
+    this.stopPermissionPoll()
+    this.pollTimer = setInterval(() => {
+      const status = this.screenStatus()
+      this.wm.send(this.wm.onboardingWindow, IPC.PermissionStatus, status)
+      if (status === 'granted') {
+        this.permissionGranted = true
+        this.stopPermissionPoll() // user finishes via the Relaunch button
+      }
+    }, 2000)
+  }
+
+  private stopPermissionPoll(): void {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer)
+      this.pollTimer = null
+    }
   }
 
   private settingsSnapshot(): SettingsSnapshot {
@@ -209,6 +272,7 @@ class AppController {
   }
 
   dispose(): void {
+    this.stopPermissionPoll()
     globalShortcut.unregisterAll()
     this.tray.destroy()
   }
