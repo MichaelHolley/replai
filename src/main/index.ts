@@ -7,7 +7,15 @@ import { WindowManager } from './windows'
 import { SettingsStore } from './settings-store'
 import { OpenRouterService } from './openrouter'
 import { IPC } from '../shared/types'
-import type { CapturedImage, StreamEvent, SubmitRequest } from '../shared/types'
+import { MODELS, PRESETS } from '../shared/models'
+import type {
+  AppConfig,
+  CapturedImage,
+  KeyValidationResult,
+  SettingsSnapshot,
+  StreamEvent,
+  SubmitRequest
+} from '../shared/types'
 
 /** Global hotkey (plan default). Accelerator + human-readable label. */
 const HOTKEY_ACCELERATOR = 'CommandOrControl+Shift+R'
@@ -152,12 +160,52 @@ class AppController {
   // --- IPC ---
 
   private registerIpc(): void {
+    // Panel (fire-and-forget)
     ipcMain.on(IPC.Submit, (_e, req: SubmitRequest) => void this.handleSubmit(req))
     ipcMain.on(IPC.Dismiss, () => this.wm.hidePanel())
     ipcMain.on(IPC.CopyDone, (_e, text: string) => {
       if (typeof text === 'string' && text.length > 0) clipboard.writeText(text)
       this.wm.hidePanel()
     })
+
+    // Settings (request/response)
+    ipcMain.handle(IPC.SettingsGet, (): SettingsSnapshot => this.settingsSnapshot())
+    ipcMain.handle(
+      IPC.SettingsValidateKey,
+      (_e, key: string): Promise<KeyValidationResult> => this.openrouter.validateKey(key)
+    )
+    ipcMain.handle(
+      IPC.SettingsSaveKey,
+      (_e, key: string): Promise<KeyValidationResult> => this.saveKey(key)
+    )
+    ipcMain.handle(
+      IPC.SettingsSaveConfig,
+      (_e, config: Partial<AppConfig>): AppConfig => this.settings.setConfig(config)
+    )
+  }
+
+  private settingsSnapshot(): SettingsSnapshot {
+    return {
+      hasKey: this.settings.hasKey(),
+      config: this.settings.getConfig(),
+      models: MODELS,
+      presets: PRESETS,
+      hotkeyLabel: HOTKEY_LABEL
+    }
+  }
+
+  /** Validates a key with a cheap call, then stores it only if valid (§5.5). */
+  private async saveKey(key: string): Promise<KeyValidationResult> {
+    const trimmed = key.trim()
+    if (!trimmed) return { ok: false, message: 'Enter an API key.' }
+    const result = await this.openrouter.validateKey(trimmed)
+    if (!result.ok) return result
+    try {
+      this.settings.setKey(trimmed)
+      return { ok: true, message: 'Key validated and saved.' }
+    } catch (err) {
+      return { ok: false, message: (err as Error).message }
+    }
   }
 
   dispose(): void {
