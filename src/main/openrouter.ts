@@ -1,4 +1,4 @@
-import type { CaptureReadyPayload, StreamError, StreamEvent } from '@shared/types'
+import type { CapturedImage, StreamError, StreamEvent } from '@shared/types'
 import { buildSystemPrompt } from './prompt'
 
 const BASE = 'https://openrouter.ai/api/v1'
@@ -10,7 +10,7 @@ export interface StreamParams {
   modelId: string
   presetId: string
   intent: string
-  image: CaptureReadyPayload
+  image: CapturedImage
   requestId: string
   signal: AbortSignal
 }

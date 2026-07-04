@@ -7,24 +7,14 @@ import type { ModelOption, StylePreset } from './types'
  */
 export const MODELS: ModelOption[] = [
   {
-    id: 'openai/gpt-4o-mini',
-    label: 'GPT-4o mini',
+    id: 'openai/gpt-5.4-mini',
+    label: 'GPT-5.4 mini',
     note: 'Fast & cheap — default'
   },
   {
-    id: 'google/gemini-2.5-flash',
-    label: 'Gemini 2.5 Flash',
-    note: 'Very fast, strong at layout'
-  },
-  {
-    id: 'anthropic/claude-sonnet-4.5',
-    label: 'Claude Sonnet 4.5',
-    note: 'Best quality, higher cost'
-  },
-  {
-    id: 'openai/gpt-4o',
-    label: 'GPT-4o',
-    note: 'Balanced quality'
+    id: 'anthropic/claude-haiku-4.5',
+    label: 'Claude Haiku 4.5',
+    note: 'Fast, strong reasoning'
   }
 ]
 

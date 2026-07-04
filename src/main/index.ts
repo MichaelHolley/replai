@@ -7,7 +7,7 @@ import { WindowManager } from './windows'
 import { SettingsStore } from './settings-store'
 import { OpenRouterService } from './openrouter'
 import { IPC } from '../shared/types'
-import type { CaptureReadyPayload, StreamEvent, SubmitRequest } from '../shared/types'
+import type { CapturedImage, StreamEvent, SubmitRequest } from '../shared/types'
 
 /** Global hotkey (plan default). Accelerator + human-readable label. */
 const HOTKEY_ACCELERATOR = 'CommandOrControl+Shift+R'
@@ -15,7 +15,7 @@ const HOTKEY_LABEL = '⌘⇧R'
 
 /** In-memory working state for the current capture (never persisted). */
 interface Session {
-  image: CaptureReadyPayload
+  image: CapturedImage
 }
 
 /**
@@ -71,7 +71,10 @@ class AppController {
 
     this.session = { image: payload }
     this.wm.showPanel()
-    await this.wm.sendToPanel(IPC.CaptureReady, payload)
+    await this.wm.sendToPanel(IPC.CaptureReady, {
+      ...payload,
+      presetId: this.settings.getConfig().presetId
+    })
   }
 
   // --- Generation ---

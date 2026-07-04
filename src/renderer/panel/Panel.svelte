@@ -1,89 +1,170 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
+  import { onMount, tick } from 'svelte'
+  import { PRESETS } from '@shared/models'
   import type { StreamEvent, StreamError } from '@shared/types'
 
-  // Milestone 2: bare streaming window. Auto-submits on capture (no controls yet
-  // — the input + preset picker + keyboard loop arrive in Milestone 3).
-  type Status = 'idle' | 'requesting' | 'streaming' | 'done' | 'error'
+  // Keyboard-only loop (plan §1):
+  //   hotkey → drag → (type intent) → Enter (submit) → Enter (copy + dismiss)
+  type Phase = 'input' | 'requesting' | 'streaming' | 'done' | 'error'
 
-  let status = $state<Status>('idle')
+  let phase = $state<Phase>('input')
   let imageUrl = $state<string | null>(null)
+  let intent = $state('')
+  let selectedPreset = $state(PRESETS[0].id)
   let reply = $state('')
   let error = $state<StreamError | null>(null)
 
+  let inputEl = $state<HTMLInputElement | null>(null)
+
+  const canCopy = $derived(phase === 'done' && reply.trim().length > 0)
+
   function reset(): void {
-    status = 'idle'
+    phase = 'input'
     imageUrl = null
+    intent = ''
     reply = ''
     error = null
+  }
+
+  function submit(): void {
+    phase = 'requesting'
+    reply = ''
+    error = null
+    window.api.submit({ intent: intent.trim(), presetId: selectedPreset })
+  }
+
+  function copyAndDismiss(): void {
+    if (reply.trim().length > 0) window.api.copyAndDismiss(reply)
+    else window.api.dismiss()
   }
 
   function handleStream(e: StreamEvent): void {
     switch (e.type) {
       case 'start':
-        status = 'streaming'
+        phase = 'streaming'
         break
       case 'token':
         reply += e.text
         break
       case 'done':
-        status = 'done'
+        phase = 'done'
         break
       case 'error':
-        status = 'error'
+        phase = 'error'
         error = e.error
         break
     }
   }
 
+  function onKeydown(e: KeyboardEvent): void {
+    const mod = e.metaKey || e.ctrlKey
+
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      window.api.dismiss()
+      return
+    }
+    // ⌘1–⌘N select a preset without clashing with typing in the intent field.
+    if (mod && e.key >= '1' && e.key <= String(PRESETS.length)) {
+      e.preventDefault()
+      selectedPreset = PRESETS[Number(e.key) - 1].id
+      return
+    }
+    if (mod && (e.key === 'c' || e.key === 'C')) {
+      if (phase === 'done') {
+        e.preventDefault()
+        copyAndDismiss()
+      }
+      return
+    }
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+      e.preventDefault()
+      if (phase === 'input') submit()
+      else if (phase === 'done') copyAndDismiss()
+      else if (phase === 'error') submit() // re-fire (no re-capture)
+    }
+  }
+
   onMount(() => {
-    const offCapture = window.api.onCaptureReady((payload) => {
+    const offCapture = window.api.onCaptureReady(async (payload) => {
       reset()
       imageUrl = `data:${payload.mimeType};base64,${payload.imageBase64}`
-      status = 'requesting'
-      // Default preset/intent for M2; overridden by the UI in M3.
-      window.api.submit({ intent: '', presetId: '' })
+      selectedPreset = payload.presetId || PRESETS[0].id
+      await tick()
+      inputEl?.focus()
     })
     const offStream = window.api.onStream(handleStream)
     const offReset = window.api.onPanelReset(reset)
-
-    const onKey = (ev: KeyboardEvent): void => {
-      if (ev.key === 'Escape') window.api.dismiss()
-    }
-    window.addEventListener('keydown', onKey)
+    window.addEventListener('keydown', onKeydown)
 
     return () => {
       offCapture()
       offStream()
       offReset()
-      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('keydown', onKeydown)
     }
   })
 </script>
 
 <main class="panel">
   <header class="head">
-    <span class="title">Fipsi</span>
-    <span class="hint">Esc to dismiss</span>
+    {#if imageUrl}
+      <img class="thumb" src={imageUrl} alt="captured conversation" />
+    {/if}
+    <input
+      bind:this={inputEl}
+      bind:value={intent}
+      class="intent"
+      type="text"
+      placeholder="What do you want to say? (optional)"
+      spellcheck="false"
+      autocomplete="off"
+      disabled={phase !== 'input'}
+    />
   </header>
 
-  {#if imageUrl}
-    <img class="thumb" src={imageUrl} alt="captured conversation" />
-  {/if}
+  <div class="presets" role="radiogroup" aria-label="Reply style">
+    {#each PRESETS as preset, i (preset.id)}
+      <button
+        type="button"
+        role="radio"
+        aria-checked={selectedPreset === preset.id}
+        class="preset"
+        class:active={selectedPreset === preset.id}
+        onclick={() => (selectedPreset = preset.id)}
+      >
+        {preset.label}<span class="kbd">⌘{i + 1}</span>
+      </button>
+    {/each}
+  </div>
 
-  <section class="answer" class:error={status === 'error'}>
-    {#if status === 'requesting'}
+  <section class="answer" class:error={phase === 'error'} aria-live="polite">
+    {#if phase === 'requesting'}
       <span class="shimmer">Thinking…</span>
-    {:else if status === 'error' && error}
-      <span class="err-kind">{error.kind}</span>
-      <span>{error.message}</span>
-    {:else}
-      <span class="reply-text">{reply}</span>{#if status === 'streaming'}<span class="caret"></span>{/if}
+    {:else if phase === 'error' && error}
+      <span class="err-kind">{error.kind}</span><span>{error.message}</span>
+    {:else if reply}
+      <span class="reply-text">{reply}</span>{#if phase === 'streaming'}<span class="caret"></span>{/if}
+    {:else if phase === 'input'}
+      <span class="placeholder">Press <b>Enter</b> to generate a reply.</span>
     {/if}
   </section>
 
   <footer class="foot">
-    <span class="status">{status}</span>
+    <span class="hint">
+      {#if phase === 'input'}Enter to generate · Esc to cancel
+      {:else if phase === 'streaming' || phase === 'requesting'}Streaming… · Esc to cancel
+      {:else if phase === 'done'}Enter or ⌘C to copy &amp; close
+      {:else if phase === 'error'}Enter to retry · Esc to cancel{/if}
+    </span>
+    <button
+      type="button"
+      class="copy"
+      disabled={!canCopy}
+      onclick={copyAndDismiss}
+    >
+      Copy
+    </button>
   </footer>
 </main>
 
@@ -94,31 +175,64 @@
     gap: 10px;
     height: 100vh;
     padding: 14px;
-    background: color-mix(in srgb, var(--surface) 96%, transparent);
+    background: color-mix(in srgb, var(--surface) 97%, transparent);
     border: 1px solid var(--border);
     border-radius: 14px;
     overflow: hidden;
   }
   .head {
     display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-  }
-  .title {
-    font-weight: 600;
-    font-size: 13px;
-  }
-  .hint {
-    color: var(--muted);
-    font-size: 11px;
+    gap: 10px;
+    align-items: stretch;
   }
   .thumb {
-    max-height: 96px;
-    width: auto;
-    align-self: flex-start;
-    border-radius: 8px;
+    max-height: 44px;
+    max-width: 88px;
+    border-radius: 7px;
     border: 1px solid var(--border);
-    object-fit: contain;
+    object-fit: cover;
+  }
+  .intent {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 10px;
+    font-size: 13px;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    outline: none;
+  }
+  .intent:focus {
+    border-color: var(--accent);
+  }
+  .intent:disabled {
+    opacity: 0.55;
+  }
+  .presets {
+    display: flex;
+    gap: 6px;
+  }
+  .preset {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 9px;
+    font-size: 12px;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  .preset.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+  }
+  .kbd {
+    font-size: 10px;
+    opacity: 0.6;
   }
   .answer {
     flex: 1;
@@ -130,6 +244,10 @@
   }
   .answer.error {
     color: var(--danger);
+  }
+  .placeholder {
+    color: var(--muted);
+    font-size: 13px;
   }
   .err-kind {
     display: inline-block;
@@ -155,13 +273,27 @@
   }
   .foot {
     display: flex;
-    justify-content: flex-end;
+    justify-content: space-between;
+    align-items: center;
   }
-  .status {
+  .hint {
     color: var(--muted);
     font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+  }
+  .copy {
+    padding: 5px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: white;
+    background: var(--accent);
+    border: none;
+    border-radius: 7px;
+    cursor: pointer;
+  }
+  .copy:disabled {
+    background: var(--border);
+    color: var(--muted);
+    cursor: default;
   }
   @keyframes pulse {
     0%,

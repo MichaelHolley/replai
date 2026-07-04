@@ -4,7 +4,7 @@ import { readFile, unlink } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { CaptureReadyPayload } from '@shared/types'
+import type { CapturedImage } from '@shared/types'
 
 /**
  * Interactive area capture via macOS `screencapture -i`.
@@ -25,7 +25,7 @@ export class CaptureService {
    * Runs an interactive capture.
    * @returns the encoded image, or `null` if the user cancelled (Esc / no file).
    */
-  async capture(): Promise<CaptureReadyPayload | null> {
+  async capture(): Promise<CapturedImage | null> {
     if (this.inFlight) return null
     this.inFlight = true
     const file = join(tmpdir(), `fipsi-${randomUUID()}.png`)
@@ -41,7 +41,7 @@ export class CaptureService {
       }
 
       const buf = await readFile(file)
-      const payload: CaptureReadyPayload = {
+      const payload: CapturedImage = {
         imageBase64: buf.toString('base64'),
         mimeType: 'image/png'
       }

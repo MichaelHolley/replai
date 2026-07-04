@@ -27,11 +27,17 @@ export interface AppConfig {
   presetId: string
 }
 
-/** Payload sent main → renderer when a capture is ready to be worked on. */
-export interface CaptureReadyPayload {
+/** A captured, encoded screenshot held in main-process memory. */
+export interface CapturedImage {
   imageBase64: string
   /** MIME type of the encoded image, e.g. "image/png". */
   mimeType: string
+}
+
+/** Payload sent main → renderer when a capture is ready to be worked on. */
+export interface CaptureReadyPayload extends CapturedImage {
+  /** The user's configured default preset, used as the panel's initial choice. */
+  presetId: string
 }
 
 /** Payload sent renderer → main to run (or re-run) a generation request. */
