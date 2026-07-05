@@ -97,7 +97,7 @@ export class WindowManager {
       height: 560,
       show: false,
       resizable: false,
-      title: 'Fipsi Settings',
+      title: 'Replai Settings',
       webPreferences: { preload: PRELOAD, sandbox: false, contextIsolation: true }
     })
     win.on('ready-to-show', () => win.show())
@@ -117,7 +117,7 @@ export class WindowManager {
       height: 420,
       show: false,
       resizable: false,
-      title: 'Fipsi',
+      title: 'Replai',
       webPreferences: { preload: PRELOAD, sandbox: false, contextIsolation: true }
     })
     win.on('ready-to-show', () => win.show())

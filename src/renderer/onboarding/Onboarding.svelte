@@ -11,9 +11,9 @@
 </script>
 
 <main class="onboarding">
-  <h1>Welcome to Fipsi</h1>
+  <h1>Welcome to Replai</h1>
   <p class="lead">
-    Fipsi needs <b>Screen Recording</b> permission to capture the conversation you select.
+    Replai needs <b>Screen Recording</b> permission to capture the conversation you select.
   </p>
   <p class="privacy">
     Screenshots never leave your machine except to the AI provider you configure, and
@@ -22,11 +22,11 @@
 
   {#if granted}
     <div class="state ok">✓ Permission granted — relaunch to finish setup.</div>
-    <button class="btn primary" onclick={() => window.api.relaunch()}>Relaunch Fipsi</button>
+    <button class="btn primary" onclick={() => window.api.relaunch()}>Relaunch Replai</button>
   {:else}
     <ol class="steps">
       <li>Click the button below to open System Settings.</li>
-      <li>Enable <b>Fipsi</b> under Screen&nbsp;&amp;&nbsp;System Audio Recording.</li>
+      <li>Enable <b>Replai</b> under Screen&nbsp;&amp;&nbsp;System Audio Recording.</li>
       <li>Return here — this window updates automatically.</li>
     </ol>
     <button class="btn primary" onclick={() => window.api.openScreenRecordingPrefs()}>

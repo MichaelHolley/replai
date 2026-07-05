@@ -46,7 +46,7 @@
   {#if !snapshot}
     <p class="muted">Loading…</p>
   {:else}
-    <h1>Fipsi Settings</h1>
+    <h1>Replai Settings</h1>
 
     <section class="card">
       <h2>OpenRouter API key</h2>

@@ -28,7 +28,7 @@ export class CaptureService {
   async capture(): Promise<CapturedImage | null> {
     if (this.inFlight) return null
     this.inFlight = true
-    const file = join(tmpdir(), `fipsi-${randomUUID()}.png`)
+    const file = join(tmpdir(), `replai-${randomUUID()}.png`)
 
     try {
       const exitCode = await this.runScreencapture(file)

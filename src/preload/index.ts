@@ -74,11 +74,11 @@ const api = {
   }
 }
 
-export type FipsiApi = typeof api
+export type ReplaiApi = typeof api
 
 if (process.contextIsolated) {
   contextBridge.exposeInMainWorld('api', api)
 } else {
   // Fallback when contextIsolation is somehow disabled.
-  ;(window as unknown as { api: FipsiApi }).api = api
+  ;(window as unknown as { api: ReplaiApi }).api = api
 }

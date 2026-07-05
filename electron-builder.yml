@@ -1,5 +1,5 @@
-appId: com.fipsi.app
-productName: Fipsi
+appId: com.replai.app
+productName: Replai
 copyright: Copyright © 2026 Michael Holley
 
 directories:
@@ -31,7 +31,7 @@ mac:
   extendInfo:
     LSUIElement: 1
     NSScreenCaptureUsageDescription: >-
-      Fipsi captures a screenshot of the on-screen conversation you select so the
+      Replai captures a screenshot of the on-screen conversation you select so the
       AI can suggest a reply. The screenshot is sent only to the AI provider you
       configure and the temporary file is deleted immediately after encoding.
   # v1 ships unsigned (developer audience, build-from-source). Signing +

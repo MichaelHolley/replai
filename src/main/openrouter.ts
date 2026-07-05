@@ -2,8 +2,8 @@ import type { CapturedImage, StreamError, StreamEvent } from '@shared/types'
 import { buildSystemPrompt } from './prompt'
 
 const BASE = 'https://openrouter.ai/api/v1'
-const REFERER = 'https://github.com/fipsi/fipsi'
-const TITLE = 'Fipsi'
+const REFERER = 'https://github.com/replai/replai'
+const TITLE = 'Replai'
 
 export interface StreamParams {
   apiKey: string

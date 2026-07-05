@@ -281,12 +281,12 @@ class AppController {
 const controller = new AppController()
 
 app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.fipsi.app')
+  electronApp.setAppUserModelId('com.replai.app')
   app.dock?.hide()
   controller.start()
   if (is.dev && !process.env.OPENROUTER_API_KEY && !new SettingsStore().hasKey()) {
     new Notification({
-      title: 'Fipsi (dev): no API key',
+      title: 'Replai (dev): no API key',
       body: 'Set OPENROUTER_API_KEY before capturing to test the streaming pipeline.'
     }).show()
   }

@@ -5,7 +5,7 @@
 // Screen Recording (TCC) grant off a stable bundle identity. electron-builder
 // skips signing when `identity` is null, leaving only the linker's ad-hoc sig on
 // the Electron binary (Info.plist unbound, resources unsealed). We ad-hoc sign
-// the whole bundle so it launches and the permission grant sticks to com.fipsi.app.
+// the whole bundle so it launches and the permission grant sticks to com.replai.app.
 const { execFileSync } = require('node:child_process')
 const { join } = require('node:path')
 

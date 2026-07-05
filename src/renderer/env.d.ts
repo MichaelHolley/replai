@@ -1,11 +1,11 @@
 /// <reference types="svelte" />
 /// <reference types="vite/client" />
 
-import type { FipsiApi } from '../preload/index'
+import type { ReplaiApi } from '../preload/index'
 
 declare global {
   interface Window {
-    api: FipsiApi
+    api: ReplaiApi
   }
 }
 

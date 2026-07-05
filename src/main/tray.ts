@@ -22,7 +22,7 @@ export class AppTray {
     const icon = nativeImage.createFromPath(resourcePath('trayTemplate.png'))
     icon.setTemplateImage(true)
     this.tray = new Tray(icon)
-    this.tray.setToolTip('Fipsi — AI Reply Assistant')
+    this.tray.setToolTip('Replai — AI Reply Assistant')
     this.tray.on('click', () => this.tray?.popUpContextMenu())
     this.rebuild()
   }
@@ -34,7 +34,7 @@ export class AppTray {
     if (!ok) {
       this.tray?.setTitle(' ⚠') // visible marker next to the menu-bar glyph
       new Notification({
-        title: 'Fipsi hotkey unavailable',
+        title: 'Replai hotkey unavailable',
         body: `${this.hotkeyLabel} is already in use by another app. Trigger capture from the menu-bar icon instead.`
       }).show()
     } else {
@@ -61,7 +61,7 @@ export class AppTray {
       { type: 'separator' as const },
       { label: 'Settings…', click: () => this.cb.onSettings() },
       { type: 'separator' as const },
-      { label: 'Quit Fipsi', click: () => this.cb.onQuit() }
+      { label: 'Quit Replai', click: () => this.cb.onQuit() }
     ])
     this.tray.setContextMenu(menu)
   }
