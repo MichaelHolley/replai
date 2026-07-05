@@ -7,7 +7,8 @@ import { WindowManager } from './windows'
 import { SettingsStore } from './settings-store'
 import { OpenRouterService } from './openrouter'
 import { IPC } from '../shared/types'
-import { MODELS, PRESETS } from '../shared/models'
+import { MODELS } from '../shared/models'
+import { PRESETS } from '../shared/styles'
 import type {
   AppConfig,
   CapturedImage,

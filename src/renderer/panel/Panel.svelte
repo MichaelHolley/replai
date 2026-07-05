@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte'
-  import { PRESETS } from '@shared/models'
+  import { PRESETS } from '@shared/styles'
   import type { StreamEvent, StreamError } from '@shared/types'
 
   // Keyboard-only loop (plan §1):

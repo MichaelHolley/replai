@@ -2,7 +2,8 @@ import { app, safeStorage } from 'electron'
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import type { AppConfig } from '@shared/types'
-import { DEFAULT_MODEL_ID, DEFAULT_PRESET_ID, getModel, getPreset } from '@shared/models'
+import { DEFAULT_MODEL_ID, getModel } from '@shared/models'
+import { DEFAULT_PRESET_ID, getPreset } from '@shared/styles'
 
 /**
  * Persists non-secret config as JSON and the OpenRouter API key encrypted via
