@@ -2,6 +2,7 @@ import { app, globalShortcut, ipcMain, clipboard, systemPreferences, Notificatio
 import { randomUUID } from 'node:crypto'
 import { electronApp, is } from '@electron-toolkit/utils'
 import { CaptureService } from './capture'
+import { InsertService } from './insert'
 import { AppTray } from './tray'
 import { WindowManager } from './windows'
 import { SettingsStore } from './settings-store'
@@ -15,7 +16,8 @@ import type {
   KeyValidationResult,
   SettingsSnapshot,
   StreamEvent,
-  SubmitRequest
+  SubmitRequest,
+  TargetApp
 } from '../shared/types'
 
 /** Global hotkey (plan default). Accelerator + human-readable label. */
@@ -26,9 +28,15 @@ const HOTKEY_LABEL = '⌘⇧R'
 const SCREEN_PREFS_URL =
   'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'
 
+/** Deep link to the Accessibility pane — needed for the synthetic ⌘V on Insert. */
+const ACCESSIBILITY_PREFS_URL =
+  'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'
+
 /** In-memory working state for the current capture (never persisted). */
 interface Session {
   image: CapturedImage
+  /** App that was frontmost at hotkey time — the paste target, if any. */
+  targetApp: TargetApp | null
 }
 
 /**
@@ -38,6 +46,7 @@ interface Session {
  */
 class AppController {
   private readonly capture = new CaptureService()
+  private readonly insert = new InsertService()
   private readonly wm = new WindowManager()
   private readonly settings = new SettingsStore()
   private readonly openrouter = new OpenRouterService()
@@ -97,14 +106,20 @@ class AppController {
       return
     }
     if (this.capture.isCapturing || this.wm.isPanelVisible()) return
+
+    // Resolve the paste target NOW — the user's app is still frontmost. Once
+    // the panel shows and focuses, this app becomes frontmost and it's too late.
+    const targetApp = await this.insert.getFrontmostApp()
+
     const payload = await this.capture.capture()
     if (!payload) return // clean cancel — do nothing
 
-    this.session = { image: payload }
+    this.session = { image: payload, targetApp }
     this.wm.showPanel()
     await this.wm.sendToPanel(IPC.CaptureReady, {
       ...payload,
-      presetId: this.settings.getConfig().presetId
+      presetId: this.settings.getConfig().presetId,
+      targetApp
     })
   }
 
@@ -159,6 +174,46 @@ class AppController {
   }
 
   /**
+   * Pastes the reply into the target app, hides the panel, and tells the
+   * renderer what happened. Falls back to a plain clipboard copy (and reports
+   * why) when there's no target or Accessibility hasn't been granted — so the
+   * reply is never lost.
+   */
+  private async handleInsert(text: string): Promise<void> {
+    const reply = typeof text === 'string' ? text : ''
+    const target = this.session?.targetApp ?? null
+
+    if (reply.length === 0) {
+      this.wm.hidePanel()
+      return
+    }
+
+    if (!target) {
+      clipboard.writeText(reply)
+      void this.wm.sendToPanel(IPC.InsertResult, { inserted: false, reason: 'no_target' })
+      this.wm.hidePanel()
+      return
+    }
+
+    // Check WITHOUT prompting — a prompt would open System Settings and blur
+    // (hence hide) the panel. Instead, copy the reply and keep the panel open
+    // with an actionable nudge; the user opens Accessibility settings on demand.
+    if (!this.insert.isTrusted(false)) {
+      clipboard.writeText(reply)
+      void this.wm.sendToPanel(IPC.InsertResult, { inserted: false, reason: 'no_accessibility' })
+      return // keep panel open so the nudge is visible
+    }
+
+    // Hide before pasting so focus returns cleanly to the target app.
+    this.wm.hidePanel()
+    const ok = await this.insert.insert(reply, target)
+    void this.wm.sendToPanel(IPC.InsertResult, {
+      inserted: ok,
+      reason: ok ? undefined : 'failed'
+    })
+  }
+
+  /**
    * Resolves the OpenRouter key from secure storage. In dev only, falls back to
    * OPENROUTER_API_KEY so the pipeline can be tested before the Settings UI
    * (Milestone 4) exists. Production is safeStorage-only (privacy rule §5.5).
@@ -190,6 +245,10 @@ class AppController {
       if (typeof text === 'string' && text.length > 0) clipboard.writeText(text)
       this.wm.hidePanel()
     })
+    ipcMain.on(IPC.Insert, (_e, text: string) => void this.handleInsert(text))
+    ipcMain.on(IPC.OpenAccessibilityPrefs, () =>
+      WindowManager.openExternal(ACCESSIBILITY_PREFS_URL)
+    )
 
     // Settings (request/response)
     ipcMain.handle(IPC.SettingsGet, (): SettingsSnapshot => this.settingsSnapshot())

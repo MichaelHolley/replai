@@ -34,10 +34,31 @@ export interface CapturedImage {
   mimeType: string
 }
 
+/**
+ * The app that was frontmost when the hotkey fired — the reply's paste target.
+ * Captured before the panel steals focus; null if it couldn't be resolved.
+ */
+export interface TargetApp {
+  /** Localized process name, e.g. "Messages" — shown on the Insert button. */
+  name: string
+  /** Bundle id, e.g. "com.apple.MobileSMS"; null when the process has none. */
+  bundleId: string | null
+}
+
 /** Payload sent main → renderer when a capture is ready to be worked on. */
 export interface CaptureReadyPayload extends CapturedImage {
   /** The user's configured default preset, used as the panel's initial choice. */
   presetId: string
+  /** The app to paste back into, or null if none was resolved (Copy-only). */
+  targetApp: TargetApp | null
+}
+
+/** Result of an Insert attempt, sent main → renderer so it can message a fallback. */
+export interface InsertResult {
+  /** True if the reply was pasted into the target app. */
+  inserted: boolean
+  /** When false, why we fell back to clipboard (drives the panel's note). */
+  reason?: 'no_accessibility' | 'no_target' | 'failed'
 }
 
 /** Payload sent renderer → main to run (or re-run) a generation request. */
@@ -81,10 +102,13 @@ export const IPC = {
   CaptureReady: 'capture:ready',
   Stream: 'request:stream',
   PanelReset: 'panel:reset',
+  InsertResult: 'panel:insert-result',
   // renderer (panel) → main
   Submit: 'request:submit',
   Dismiss: 'panel:dismiss',
   CopyDone: 'panel:copy-done',
+  Insert: 'panel:insert',
+  OpenAccessibilityPrefs: 'panel:open-accessibility-prefs',
   // settings (renderer → main, invoke/handle)
   SettingsGet: 'settings:get',
   SettingsSaveKey: 'settings:save-key',

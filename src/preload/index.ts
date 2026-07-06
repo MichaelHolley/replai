@@ -3,6 +3,7 @@ import { IPC } from '../shared/types'
 import type {
   AppConfig,
   CaptureReadyPayload,
+  InsertResult,
   KeyValidationResult,
   SettingsSnapshot,
   StreamEvent,
@@ -38,6 +39,17 @@ const api = {
   },
   copyAndDismiss(text: string): void {
     ipcRenderer.send(IPC.CopyDone, text)
+  },
+  insert(text: string): void {
+    ipcRenderer.send(IPC.Insert, text)
+  },
+  onInsertResult(cb: (result: InsertResult) => void): () => void {
+    const listener = (_e: unknown, result: InsertResult): void => cb(result)
+    ipcRenderer.on(IPC.InsertResult, listener)
+    return () => ipcRenderer.removeListener(IPC.InsertResult, listener)
+  },
+  openAccessibilityPrefs(): void {
+    ipcRenderer.send(IPC.OpenAccessibilityPrefs)
   },
 
   // --- Settings ---

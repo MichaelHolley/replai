@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte'
   import { PRESETS } from '@shared/styles'
-  import type { StreamEvent, StreamError } from '@shared/types'
+  import type { StreamEvent, StreamError, TargetApp, InsertResult } from '@shared/types'
 
   // Keyboard-only loop (plan §1):
   //   hotkey → drag → (type intent) → Enter (submit) → Enter (copy + dismiss)
@@ -17,12 +17,22 @@
   // changed their mind (and should regenerate) vs. just re-copying it.
   let lastIntent = $state('')
   let lastPreset = $state(PRESETS[0].id)
+  // The app to paste back into (frontmost when the hotkey fired), or null.
+  let targetApp = $state<TargetApp | null>(null)
+  // Set when Insert falls back to a plain copy (e.g. Accessibility not granted).
+  let insertNote = $state<string | null>(null)
+  let showAccessibilityAction = $state(false)
 
   let inputEl = $state<HTMLInputElement | null>(null)
 
   const canCopy = $derived(phase === 'done' && reply.trim().length > 0)
   const isDirty = $derived(
     phase === 'done' && (intent.trim() !== lastIntent || selectedPreset !== lastPreset)
+  )
+  // The primary action's label: regenerate if the request changed, else insert
+  // into the captured app when we have one, else fall back to copy.
+  const primaryLabel = $derived(
+    isDirty ? 'Regenerate' : targetApp ? `Insert into ${targetApp.name}` : 'Copy'
   )
 
   function reset(): void {
@@ -33,6 +43,8 @@
     error = null
     lastIntent = ''
     lastPreset = selectedPreset
+    insertNote = null
+    showAccessibilityAction = false
   }
 
   function submit(): void {
@@ -49,12 +61,34 @@
     else window.api.dismiss()
   }
 
-  // The single action bound to Enter/⌘C/Copy once a reply exists: regenerate
-  // if the intent or preset changed since this reply was produced, otherwise
-  // copy it. Keeps all three triggers from ever copying a stale reply.
-  function copyOrRegenerate(): void {
+  // Primary action once a reply exists: regenerate if the intent/preset changed
+  // since this reply was produced (never act on a stale reply); otherwise paste
+  // it into the captured target app, or copy when there's no target. Main hides
+  // the panel — unless Insert falls back, which pushes a note via onInsertResult.
+  function primaryAction(): void {
+    if (isDirty) {
+      submit()
+    } else if (reply.trim().length === 0) {
+      window.api.dismiss()
+    } else if (targetApp) {
+      window.api.insert(reply)
+    } else {
+      copyAndDismiss()
+    }
+  }
+
+  // ⌘C is always a plain copy (regenerates first if the reply is stale).
+  function copyShortcut(): void {
     if (isDirty) submit()
     else copyAndDismiss()
+  }
+
+  function handleInsertResult(result: InsertResult): void {
+    if (result.inserted) return // panel is already hidden
+    if (result.reason === 'no_accessibility') {
+      insertNote = 'Copied to clipboard. Grant Accessibility to paste in directly.'
+      showAccessibilityAction = true
+    }
   }
 
   // Which error kinds are fixed in Settings (bad/missing key, or a model swap).
@@ -98,14 +132,14 @@
     if (mod && (e.key === 'c' || e.key === 'C')) {
       if (phase === 'done') {
         e.preventDefault()
-        copyOrRegenerate()
+        copyShortcut()
       }
       return
     }
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault()
       if (phase === 'input') submit()
-      else if (phase === 'done') copyOrRegenerate()
+      else if (phase === 'done') primaryAction()
       else if (phase === 'error') submit() // re-fire (no re-capture)
     }
   }
@@ -115,17 +149,20 @@
       reset()
       imageUrl = `data:${payload.mimeType};base64,${payload.imageBase64}`
       selectedPreset = payload.presetId || PRESETS[0].id
+      targetApp = payload.targetApp
       await tick()
       inputEl?.focus()
     })
     const offStream = window.api.onStream(handleStream)
     const offReset = window.api.onPanelReset(reset)
+    const offInsert = window.api.onInsertResult(handleInsertResult)
     window.addEventListener('keydown', onKeydown)
 
     return () => {
       offCapture()
       offStream()
       offReset()
+      offInsert()
       window.removeEventListener('keydown', onKeydown)
     }
   })
@@ -185,21 +222,36 @@
     {/if}
   </section>
 
+  {#if insertNote}
+    <div class="note" role="status">
+      <span>{insertNote}</span>
+      {#if showAccessibilityAction}
+        <button type="button" class="mini" onclick={() => window.api.openAccessibilityPrefs()}>
+          Open Settings
+        </button>
+      {/if}
+    </div>
+  {/if}
+
   <footer class="foot">
     <span class="hint">
       {#if phase === 'input'}Enter to generate · Esc to cancel
       {:else if phase === 'streaming' || phase === 'requesting'}Streaming… · Esc to cancel
-      {:else if phase === 'done'}{isDirty ? 'Enter to regenerate · Esc to cancel' : 'Enter or ⌘C to copy & close'}
+      {:else if phase === 'done'}{isDirty
+          ? 'Enter to regenerate · Esc to cancel'
+          : targetApp
+            ? 'Enter to insert · ⌘C to copy'
+            : 'Enter or ⌘C to copy & close'}
       {:else if phase === 'error'}Enter to retry · Esc to cancel{/if}
     </span>
-    <button
-      type="button"
-      class="copy"
-      disabled={!canCopy}
-      onclick={copyOrRegenerate}
-    >
-      {isDirty ? 'Regenerate' : 'Copy'}
-    </button>
+    <div class="actions">
+      {#if canCopy && targetApp && !isDirty}
+        <button type="button" class="copy secondary" onclick={copyAndDismiss}>Copy</button>
+      {/if}
+      <button type="button" class="copy" disabled={!canCopy} onclick={primaryAction}>
+        {primaryLabel}
+      </button>
+    </div>
   </footer>
 </main>
 
@@ -326,14 +378,32 @@
     background: var(--accent);
     animation: blink 1s step-end infinite;
   }
+  .note {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 10px;
+    font-size: 11px;
+    color: var(--text);
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+    border-radius: 8px;
+  }
   .foot {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 10px;
   }
   .hint {
     color: var(--muted);
     font-size: 11px;
+  }
+  .actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
   }
   .copy {
     padding: 5px 14px;
@@ -344,6 +414,12 @@
     border: none;
     border-radius: 7px;
     cursor: pointer;
+    white-space: nowrap;
+  }
+  .copy.secondary {
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
   }
   .copy:disabled {
     background: var(--border);
