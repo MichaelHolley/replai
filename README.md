@@ -1,6 +1,8 @@
 # Replai
 
-macOS menu-bar app that turns a screenshot of any chat into an AI-suggested reply — hit a hotkey, select the conversation, get a ready-to-send message.
+Too lazy to write a reply? Let Replai do it. Screenshot the chat and get an AI-cleaned-up, ready-to-send answer in your style — no typing required.
+
+A macOS menu-bar app: hit a hotkey, select the conversation, copy the suggestion.
 
 The loop is keyboard-only:
 

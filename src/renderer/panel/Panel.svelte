@@ -13,10 +13,17 @@
   let selectedPreset = $state(PRESETS[0].id)
   let reply = $state('')
   let error = $state<StreamError | null>(null)
+  // What produced the current `reply`, so we can tell whether the user has
+  // changed their mind (and should regenerate) vs. just re-copying it.
+  let lastIntent = $state('')
+  let lastPreset = $state(PRESETS[0].id)
 
   let inputEl = $state<HTMLInputElement | null>(null)
 
   const canCopy = $derived(phase === 'done' && reply.trim().length > 0)
+  const isDirty = $derived(
+    phase === 'done' && (intent.trim() !== lastIntent || selectedPreset !== lastPreset)
+  )
 
   function reset(): void {
     phase = 'input'
@@ -24,18 +31,30 @@
     intent = ''
     reply = ''
     error = null
+    lastIntent = ''
+    lastPreset = selectedPreset
   }
 
   function submit(): void {
     phase = 'requesting'
     reply = ''
     error = null
-    window.api.submit({ intent: intent.trim(), presetId: selectedPreset })
+    lastIntent = intent.trim()
+    lastPreset = selectedPreset
+    window.api.submit({ intent: lastIntent, presetId: selectedPreset })
   }
 
   function copyAndDismiss(): void {
     if (reply.trim().length > 0) window.api.copyAndDismiss(reply)
     else window.api.dismiss()
+  }
+
+  // The single action bound to Enter/⌘C/Copy once a reply exists: regenerate
+  // if the intent or preset changed since this reply was produced, otherwise
+  // copy it. Keeps all three triggers from ever copying a stale reply.
+  function copyOrRegenerate(): void {
+    if (isDirty) submit()
+    else copyAndDismiss()
   }
 
   // Which error kinds are fixed in Settings (bad/missing key, or a model swap).
@@ -79,14 +98,14 @@
     if (mod && (e.key === 'c' || e.key === 'C')) {
       if (phase === 'done') {
         e.preventDefault()
-        copyAndDismiss()
+        copyOrRegenerate()
       }
       return
     }
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault()
       if (phase === 'input') submit()
-      else if (phase === 'done') copyAndDismiss()
+      else if (phase === 'done') copyOrRegenerate()
       else if (phase === 'error') submit() // re-fire (no re-capture)
     }
   }
@@ -125,7 +144,7 @@
       placeholder="What do you want to say? (optional)"
       spellcheck="false"
       autocomplete="off"
-      disabled={phase !== 'input'}
+      disabled={phase === 'requesting' || phase === 'streaming'}
     />
   </header>
 
@@ -170,16 +189,16 @@
     <span class="hint">
       {#if phase === 'input'}Enter to generate · Esc to cancel
       {:else if phase === 'streaming' || phase === 'requesting'}Streaming… · Esc to cancel
-      {:else if phase === 'done'}Enter or ⌘C to copy &amp; close
+      {:else if phase === 'done'}{isDirty ? 'Enter to regenerate · Esc to cancel' : 'Enter or ⌘C to copy & close'}
       {:else if phase === 'error'}Enter to retry · Esc to cancel{/if}
     </span>
     <button
       type="button"
       class="copy"
       disabled={!canCopy}
-      onclick={copyAndDismiss}
+      onclick={copyOrRegenerate}
     >
-      Copy
+      {isDirty ? 'Regenerate' : 'Copy'}
     </button>
   </footer>
 </main>
