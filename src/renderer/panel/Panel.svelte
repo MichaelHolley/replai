@@ -282,8 +282,10 @@
   .intent {
     flex: 1;
     min-width: 0;
+    field-sizing: content;
     min-height: 44px;
     max-height: 110px;
+    overflow-y: auto;
     padding: 8px 10px;
     font-size: 13px;
     font-family: inherit;
