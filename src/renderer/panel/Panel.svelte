@@ -23,7 +23,7 @@
   let insertNote = $state<string | null>(null)
   let showAccessibilityAction = $state(false)
 
-  let inputEl = $state<HTMLInputElement | null>(null)
+  let inputEl = $state<HTMLTextAreaElement | null>(null)
 
   const canCopy = $derived(phase === 'done' && reply.trim().length > 0)
   const isDirty = $derived(
@@ -173,16 +173,16 @@
     {#if imageUrl}
       <img class="thumb" src={imageUrl} alt="captured conversation" />
     {/if}
-    <input
+    <textarea
       bind:this={inputEl}
       bind:value={intent}
       class="intent"
-      type="text"
+      rows="1"
       placeholder="What do you want to say? (optional)"
       spellcheck="false"
       autocomplete="off"
       disabled={phase === 'requesting' || phase === 'streaming'}
-    />
+    ></textarea>
   </header>
 
   <div class="presets" role="radiogroup" aria-label="Reply style">
@@ -282,13 +282,19 @@
   .intent {
     flex: 1;
     min-width: 0;
+    field-sizing: content;
+    min-height: 44px;
+    max-height: 110px;
+    overflow-y: auto;
     padding: 8px 10px;
     font-size: 13px;
+    font-family: inherit;
     color: var(--text);
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 8px;
     outline: none;
+    resize: none;
   }
   .intent:focus {
     border-color: var(--accent);
