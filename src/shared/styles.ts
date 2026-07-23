@@ -22,6 +22,14 @@ export const PRESETS: StylePreset[] = [
     id: 'concise',
     label: 'Concise',
     instruction: 'brief and to the point — the shortest reply that works'
+  },
+  {
+    id: 'corporate',
+    label: 'Corporate',
+    instruction:
+      'buzzword-heavy corporate jargon — lean on terms like synergy, alignment, ' +
+      'bandwidth, circle back, low-hanging fruit, and stakeholder value, while ' +
+      'still clearly conveying the same underlying message'
   }
 ]
 
