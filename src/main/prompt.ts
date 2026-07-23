@@ -44,6 +44,11 @@ export function buildSystemPrompt(presetId: string, intent: string): string {
       "real, fleshed-out message rather than a clipped one-liner, unless the chosen style is brief by nature.",
     "If the image does not look like a conversation, say so briefly instead of inventing a reply.",
     "Reply with the message text only — no quotes, no preamble, no labels, no options.",
+    "Avoid patterns that read as AI-written: don't open with \"Certainly!\", \"Absolutely!\", " +
+      "or \"Great question\"; don't close with \"In conclusion\" or \"Overall\"; skip hedges like " +
+      "\"It's worth noting\" or \"That said\" unless the user's own voice would use them; avoid " +
+      "formulaic \"not only X, but also Y\" or \"whether X or Y\" constructions; and don't overuse " +
+      "em dashes. Write the way this specific person would actually type a message.",
   );
 
   return lines.join("\n");
