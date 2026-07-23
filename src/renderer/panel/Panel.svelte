@@ -304,6 +304,7 @@
   }
   .presets {
     display: flex;
+    flex-wrap: wrap;
     gap: 6px;
   }
   .preset {
