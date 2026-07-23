@@ -17,6 +17,8 @@ export interface ModelOption {
 export interface StylePreset {
   id: string
   label: string
+  /** Short, user-facing summary shown in Settings. */
+  description: string
   /** Instruction fragment injected into the system prompt. */
   instruction: string
 }

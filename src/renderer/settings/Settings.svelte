@@ -109,7 +109,7 @@
             onclick={() => savePreset(preset.id)}
           >
             <span class="opt-label">{preset.label}</span>
-            <span class="opt-note">{preset.instruction}</span>
+            <span class="opt-note">{preset.description}</span>
           </button>
         {/each}
       </div>
