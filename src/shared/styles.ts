@@ -52,10 +52,11 @@ export const PRESETS: StylePreset[] = [
     label: "Corporate",
     description: "Buzzword-heavy business speak",
     instruction:
-      "buzzword-heavy corporate jargon — lean on terms like synergy, alignment, " +
-      "bandwidth, circle back, low-hanging fruit, and stakeholder value, and " +
-      "happily over-explain at length, while still clearly conveying the same " +
-      "underlying message",
+      "buzzword-heavy corporate jargon — draw freely on the full vocabulary of " +
+      "business speak (synergy, alignment, bandwidth, circle back, low-hanging " +
+      "fruit, and stakeholder value are just a few examples; reach for whatever " +
+      "other jargon fits), and happily over-explain at length, while still " +
+      "clearly conveying the same underlying message",
   },
 ];
 
