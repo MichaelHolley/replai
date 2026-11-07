@@ -45,8 +45,13 @@
 
   async function checkClaude(): Promise<void> {
     checkingClaude = true
-    claudeStatus = await window.api.checkClaudeCode()
-    checkingClaude = false
+    try {
+      claudeStatus = await window.api.checkClaudeCode()
+    } catch {
+      claudeStatus = { ok: false, message: 'Could not check Claude Code. Try again.' }
+    } finally {
+      checkingClaude = false
+    }
   }
 
   async function saveModel(id: string): Promise<void> {

@@ -2,10 +2,11 @@ import { app } from 'electron'
 import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { isAbsolute, join } from 'node:path'
 import {
   query,
   type Options,
+  type Query,
   type SDKAssistantMessageError,
   type SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
@@ -15,12 +16,17 @@ import { buildSystemPrompt, type ReplyRequest } from './prompt'
 const LOGIN_HINT = 'Run `claude` in a terminal and sign in with /login.'
 const INSTALL_HINT = 'Install Claude Code (claude.com/claude-code), then sign in with /login.'
 
-// Finder-launched apps get a minimal PATH, so look in the usual install locations first.
+const IS_WINDOWS = process.platform === 'win32'
+// Only the native binary: Node can't spawn npm's `claude.cmd` shim without a shell.
+const EXE = IS_WINDOWS ? 'claude.exe' : 'claude'
+
+// GUI-launched apps can get a minimal PATH, so look in the usual install locations first.
 const KNOWN_PATHS = [
-  join(homedir(), '.local/bin/claude'),
-  join(homedir(), '.claude/local/claude'),
-  '/opt/homebrew/bin/claude',
-  '/usr/local/bin/claude'
+  join(homedir(), '.local', 'bin', EXE),
+  join(homedir(), '.claude', 'local', EXE),
+  ...(IS_WINDOWS
+    ? []
+    : ['/opt/homebrew/bin/claude', '/usr/local/bin/claude', '/home/linuxbrew/.linuxbrew/bin/claude'])
 ]
 
 /**
@@ -89,6 +95,13 @@ export class ClaudeCodeService {
           return
         }
       }
+      if (!signal.aborted) {
+        emit({
+          type: 'error',
+          requestId,
+          error: { kind: 'unknown', message: 'Claude Code stopped without a reply.' }
+        })
+      }
     } catch (err) {
       if (signal.aborted) return // superseded/cancelled — stay silent
       emit({ type: 'error', requestId, error: classifyThrown(err) })
@@ -100,11 +113,12 @@ export class ClaudeCodeService {
   /** Starts Claude Code without sending a prompt and reads which account it's signed in to. */
   async checkStatus(): Promise<ClaudeCodeStatus> {
     const abortController = new AbortController()
-    const q = query({
-      prompt: waitForAbort(abortController.signal),
-      options: { ...(await this.baseOptions()), abortController }
-    })
+    let q: Query | undefined
     try {
+      q = query({
+        prompt: waitForAbort(abortController.signal),
+        options: { ...(await this.baseOptions()), abortController }
+      })
       const account = await withTimeout(q.accountInfo(), 20_000)
       if (account.email) return { ok: true, message: `Signed in as ${account.email}.` }
       if (account.apiKeySource && account.apiKeySource !== 'none') {
@@ -118,7 +132,7 @@ export class ClaudeCodeService {
       return { ok: false, message: classifyThrown(err).message }
     } finally {
       abortController.abort()
-      q.close()
+      q?.close()
     }
   }
 
@@ -142,7 +156,7 @@ export class ClaudeCodeService {
    */
   private async resolveExecutable(): Promise<string | undefined> {
     if (this.executablePath) return this.executablePath
-    const found = KNOWN_PATHS.find((p) => existsSync(p)) ?? (await findInLoginShell())
+    const found = KNOWN_PATHS.find((p) => existsSync(p)) ?? (await findOnPath())
     if (found) this.executablePath = found
     return found
   }
@@ -173,12 +187,18 @@ async function* waitForAbort(signal: AbortSignal): AsyncGenerator<SDKUserMessage
   await new Promise<void>((resolve) => signal.addEventListener('abort', () => resolve()))
 }
 
-function findInLoginShell(): Promise<string | undefined> {
-  const shell = process.env.SHELL || '/bin/zsh'
+function findOnPath(): Promise<string | undefined> {
+  const [cmd, args]: [string, string[]] = IS_WINDOWS
+    ? ['where.exe', [EXE]]
+    : [process.env.SHELL || '/bin/sh', ['-lc', 'command -v claude']]
   return new Promise((resolve) => {
-    execFile(shell, ['-lc', 'command -v claude'], { timeout: 5000 }, (err, stdout) => {
-      const path = stdout.trim()
-      resolve(!err && path && existsSync(path) ? path : undefined)
+    execFile(cmd, args, { timeout: 5000 }, (_err, stdout) => {
+      // Shell profiles can print banners before the path, so pick the first line that is a real file.
+      const path = stdout
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .find((line) => isAbsolute(line) && existsSync(line))
+      resolve(path)
     })
   })
 }
