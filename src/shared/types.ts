@@ -8,7 +8,7 @@ export type ProviderId = 'openrouter' | 'claude-code'
 
 /** Curated, vision-capable models offered in Settings. */
 export interface ModelOption {
-  /** Provider-specific model id, e.g. "openai/gpt-4o-mini" or "claude-haiku-4-5". */
+  /** Provider-specific model id, e.g. "openai/gpt-6-luna" or "haiku". */
   id: string
   provider: ProviderId
   /** Human label shown in the picker. */

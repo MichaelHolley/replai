@@ -7,15 +7,15 @@ import type { ModelOption, ProviderId } from './types'
  */
 export const MODELS: ModelOption[] = [
   {
-    id: 'openai/gpt-5.4-mini',
+    id: 'openai/gpt-6-luna',
     provider: 'openrouter',
-    label: 'GPT-5.4 mini',
+    label: 'GPT-6 Luna',
     note: 'Fast & cheap — default'
   },
   {
-    id: 'anthropic/claude-haiku-4.5',
+    id: 'anthropic/claude-haiku-5.5',
     provider: 'openrouter',
-    label: 'Claude Haiku 4.5',
+    label: 'Claude Haiku 5.5',
     note: 'Fast, strong reasoning'
   },
   // Claude Code aliases always resolve to the latest model of that family.
