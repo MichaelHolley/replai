@@ -12,6 +12,8 @@ afterPack: build/after-pack.cjs
 files:
   - out/**/*
   - package.json
+  # The Agent SDK's bundled Claude Code binary is ~300 MB; packaged builds use the user's install.
+  - "!**/node_modules/@anthropic-ai/claude-agent-sdk-*/**"
 
 # Ship the tray icons alongside the app; resolved at process.resourcesPath/resources.
 extraResources:

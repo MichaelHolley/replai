@@ -3,6 +3,7 @@ import { IPC } from '../shared/types'
 import type {
   AppConfig,
   CaptureReadyPayload,
+  ClaudeCodeStatus,
   InsertResult,
   KeyValidationResult,
   SettingsSnapshot,
@@ -61,6 +62,9 @@ const api = {
   },
   saveKey(key: string): Promise<KeyValidationResult> {
     return ipcRenderer.invoke(IPC.SettingsSaveKey, key)
+  },
+  checkClaudeCode(): Promise<ClaudeCodeStatus> {
+    return ipcRenderer.invoke(IPC.SettingsCheckClaudeCode)
   },
   saveConfig(config: Partial<AppConfig>): Promise<AppConfig> {
     return ipcRenderer.invoke(IPC.SettingsSaveConfig, config)

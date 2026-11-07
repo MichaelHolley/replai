@@ -7,12 +7,14 @@ import { AppTray } from './tray'
 import { WindowManager } from './windows'
 import { SettingsStore } from './settings-store'
 import { OpenRouterService } from './openrouter'
+import { ClaudeCodeService } from './claude-code'
 import { IPC } from '../shared/types'
 import { MODELS } from '../shared/models'
 import { PRESETS } from '../shared/styles'
 import type {
   AppConfig,
   CapturedImage,
+  ClaudeCodeStatus,
   KeyValidationResult,
   SettingsSnapshot,
   StreamEvent,
@@ -41,7 +43,7 @@ interface Session {
 
 /**
  * Top-level app controller: tray, hotkey, capture, and the capture → panel →
- * OpenRouter streaming loop. The screenshot lives only in `session` and is
+ * provider streaming loop. The screenshot lives only in `session` and is
  * cleared on every panel hide (privacy rule §5.4).
  */
 class AppController {
@@ -50,6 +52,7 @@ class AppController {
   private readonly wm = new WindowManager()
   private readonly settings = new SettingsStore()
   private readonly openrouter = new OpenRouterService()
+  private readonly claudeCode = new ClaudeCodeService()
   private readonly tray = new AppTray({
     onCapture: () => void this.triggerCapture(),
     onSettings: () => this.wm.showSettings(),
@@ -134,6 +137,32 @@ class AppController {
     this.currentAbort = abort
     const requestId = randomUUID()
 
+    const config = this.settings.getConfig()
+    const request = {
+      modelId: config.modelId,
+      presetId: req.presetId || config.presetId,
+      intent: req.intent,
+      image: this.session.image,
+      requestId,
+      signal: abort.signal
+    }
+
+    const startedAt = Date.now()
+    let sawFirstToken = false
+    const emit = (event: StreamEvent): void => {
+      if (abort.signal.aborted) return
+      if (event.type === 'token' && !sawFirstToken) {
+        sawFirstToken = true
+        console.log('[stream] %s first token in %dms', config.provider, Date.now() - startedAt)
+      }
+      this.emit(event)
+    }
+
+    if (config.provider === 'claude-code') {
+      await this.claudeCode.stream(request, emit)
+      return
+    }
+
     const key = this.resolveKey()
     if (!key) {
       this.emit({
@@ -143,30 +172,7 @@ class AppController {
       })
       return
     }
-
-    const config = this.settings.getConfig()
-    const startedAt = Date.now()
-    let sawFirstToken = false
-
-    await this.openrouter.stream(
-      {
-        apiKey: key,
-        modelId: config.modelId,
-        presetId: req.presetId || config.presetId,
-        intent: req.intent,
-        image: this.session.image,
-        requestId,
-        signal: abort.signal
-      },
-      (event) => {
-        if (abort.signal.aborted) return
-        if (event.type === 'token' && !sawFirstToken) {
-          sawFirstToken = true
-          console.log('[stream] first token in %dms', Date.now() - startedAt)
-        }
-        this.emit(event)
-      }
-    )
+    await this.openrouter.stream({ ...request, apiKey: key }, emit)
   }
 
   private emit(event: StreamEvent): void {
@@ -257,6 +263,10 @@ class AppController {
       (_e, key: string): Promise<KeyValidationResult> => this.openrouter.validateKey(key)
     )
     ipcMain.handle(
+      IPC.SettingsCheckClaudeCode,
+      (): Promise<ClaudeCodeStatus> => this.claudeCode.checkStatus()
+    )
+    ipcMain.handle(
       IPC.SettingsSaveKey,
       (_e, key: string): Promise<KeyValidationResult> => this.saveKey(key)
     )
@@ -344,7 +354,13 @@ app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.replai.app')
   app.dock?.hide()
   controller.start()
-  if (is.dev && !process.env.OPENROUTER_API_KEY && !new SettingsStore().hasKey()) {
+  const devSettings = new SettingsStore()
+  if (
+    is.dev &&
+    devSettings.getConfig().provider === 'openrouter' &&
+    !process.env.OPENROUTER_API_KEY &&
+    !devSettings.hasKey()
+  ) {
     new Notification({
       title: 'Replai (dev): no API key',
       body: 'Set OPENROUTER_API_KEY before capturing to test the streaming pipeline.'

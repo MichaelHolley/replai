@@ -2,7 +2,7 @@ import { app, safeStorage } from 'electron'
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import type { AppConfig } from '@shared/types'
-import { DEFAULT_MODEL_ID, getModel } from '@shared/models'
+import { DEFAULT_PROVIDER, defaultModelId, getModel, isProvider } from '@shared/models'
 import { DEFAULT_PRESET_ID, getPreset } from '@shared/styles'
 
 /**
@@ -17,7 +17,8 @@ export class SettingsStore {
   private readonly keyPath = join(app.getPath('userData'), 'key.enc')
 
   private config: AppConfig = {
-    modelId: DEFAULT_MODEL_ID,
+    provider: DEFAULT_PROVIDER,
+    modelId: defaultModelId(DEFAULT_PROVIDER),
     presetId: DEFAULT_PRESET_ID
   }
 
@@ -30,8 +31,11 @@ export class SettingsStore {
       if (existsSync(this.configPath)) {
         const raw = JSON.parse(readFileSync(this.configPath, 'utf8')) as Partial<AppConfig>
         // Validate against the curated lists — fall back to defaults if stale.
+        const provider = isProvider(raw.provider) ? raw.provider : DEFAULT_PROVIDER
         this.config = {
-          modelId: raw.modelId && getModel(raw.modelId) ? raw.modelId : DEFAULT_MODEL_ID,
+          provider,
+          modelId:
+            raw.modelId && getModel(raw.modelId, provider) ? raw.modelId : defaultModelId(provider),
           presetId: raw.presetId && getPreset(raw.presetId) ? raw.presetId : DEFAULT_PRESET_ID
         }
       }
@@ -45,7 +49,13 @@ export class SettingsStore {
   }
 
   setConfig(next: Partial<AppConfig>): AppConfig {
-    if (next.modelId && getModel(next.modelId)) this.config.modelId = next.modelId
+    if (isProvider(next.provider) && next.provider !== this.config.provider) {
+      this.config.provider = next.provider
+      this.config.modelId = defaultModelId(next.provider)
+    }
+    if (next.modelId && getModel(next.modelId, this.config.provider)) {
+      this.config.modelId = next.modelId
+    }
     if (next.presetId && getPreset(next.presetId)) this.config.presetId = next.presetId
     this.ensureDir(this.configPath)
     writeFileSync(this.configPath, JSON.stringify(this.config, null, 2), 'utf8')

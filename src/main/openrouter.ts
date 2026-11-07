@@ -1,18 +1,12 @@
-import type { CapturedImage, StreamError, StreamEvent } from '@shared/types'
-import { buildSystemPrompt } from './prompt'
+import type { StreamError, StreamEvent } from '@shared/types'
+import { buildSystemPrompt, type ReplyRequest } from './prompt'
 
 const BASE = 'https://openrouter.ai/api/v1'
 const REFERER = 'https://github.com/replai/replai'
 const TITLE = 'Replai'
 
-export interface StreamParams {
+export interface StreamParams extends ReplyRequest {
   apiKey: string
-  modelId: string
-  presetId: string
-  intent: string
-  image: CapturedImage
-  requestId: string
-  signal: AbortSignal
 }
 
 /**

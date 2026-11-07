@@ -8,13 +8,15 @@ The loop is keyboard-only:
 
 > hotkey → drag a selection over the chat → *(optionally type your intent)* → **Enter** to generate → **Enter** to insert the reply straight back into the app you were in (or copy)
 
-Replies stream in token-by-token, in a style you pick (Professional, Casual, Flirty, Concise). Bring your own [OpenRouter](https://openrouter.ai) key.
+Replies stream in token-by-token, in a style you pick (Professional, Casual, Flirty, Concise). Bring your own [OpenRouter](https://openrouter.ai) key, or use your local [Claude Code](https://claude.com/claude-code) login.
 
 ## Requirements
 
 - **macOS** (uses the native `screencapture` tool)
 - **Node ≥ 20** and **pnpm**
-- An **OpenRouter API key**
+- One of:
+  - an **OpenRouter API key**, or
+  - **Claude Code** installed and signed in (`claude` → `/login`)
 
 ## Setup
 
@@ -23,7 +25,7 @@ pnpm install
 pnpm dev
 ```
 
-On first launch, grant **Screen Recording** permission when prompted, then open the menu-bar icon → **Settings** and paste your OpenRouter key.
+On first launch, grant **Screen Recording** permission when prompted, then open the menu-bar icon → **Settings** and pick a provider: paste your OpenRouter key, or choose **Claude Code login**.
 
 > Prefer to skip the Settings step while developing? Set `OPENROUTER_API_KEY` in your environment before `pnpm dev` — it's used as a fallback in dev only.
 
@@ -36,6 +38,14 @@ On first launch, grant **Screen Recording** permission when prompted, then open 
 
 > Inserting pastes into the previously focused app, so it needs **Accessibility** permission (macOS → System Settings → Privacy & Security → Accessibility). Until it's granted, Insert falls back to copying the reply and shows a one-tap link to the settings pane. Capture-only usage (copy) never needs it.
 
+## Claude Code provider
+
+The Claude Code provider runs replies through the [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview) using the `claude` install and account already on your Mac (subscription or API key) — no extra key in Replai. It runs as a plain one-turn chat: no tools, none of your Claude Code settings, and no session saved to disk.
+
+Replai looks for `claude` in `~/.local/bin`, `~/.claude/local`, `/opt/homebrew/bin`, `/usr/local/bin`, then your login shell's `PATH`. Packaged builds don't bundle Claude Code; in `pnpm dev` the SDK's bundled copy is used as a fallback.
+
+> Anthropic doesn't allow third-party products to offer claude.ai login without approval. This provider is meant for your own, locally built copy of Replai — don't ship it to others with subscription login enabled.
+
 ## Build a packaged app
 
 ```bash
@@ -47,12 +57,12 @@ The app ships unsigned (developer, build-locally audience); code signing + notar
 
 ## Privacy
 
-Screenshots are held in memory only, deleted immediately after encoding, and never written to disk or logs. Image data goes only to the OpenRouter endpoint you configure. Your API key is stored encrypted via the macOS Keychain (`safeStorage`) and never touches the UI process. There is no screenshot history.
+Screenshots are held in memory only, deleted immediately after encoding, and never written to disk or logs. Image data goes only to the provider you pick: OpenRouter, or Anthropic via your local Claude Code. Your OpenRouter API key is stored encrypted via the macOS Keychain (`safeStorage`) and never touches the UI process. There is no screenshot history.
 
 Inserting a reply briefly places it on the clipboard to issue a paste, then restores your previous clipboard text a moment later (text only — a prior image/file on the clipboard isn't preserved). Choose **⌘C** instead if you'd rather it just stay on the clipboard.
 
 ## Tech
 
-Electron · TypeScript · Svelte 5 · Vite · OpenRouter.
+Electron · TypeScript · Svelte 5 · Vite · OpenRouter · Claude Agent SDK.
 
 Handy scripts: `pnpm dev`, `pnpm build`, `pnpm typecheck`, `pnpm run pack`.
