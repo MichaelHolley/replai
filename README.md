@@ -42,7 +42,7 @@ On first launch, grant **Screen Recording** permission when prompted, then open 
 
 The Claude Code provider runs replies through the [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview) using the `claude` install and account already on your Mac (subscription or API key) — no extra key in Replai. It runs as a plain one-turn chat: no tools, none of your Claude Code settings, and no session saved to disk.
 
-Replai looks for `claude` in `~/.local/bin`, `~/.claude/local`, `/opt/homebrew/bin`, `/usr/local/bin`, `/home/linuxbrew/.linuxbrew/bin`, then your login shell's `PATH` (on Windows: `claude.exe` in `%USERPROFILE%\.local\bin`, then `PATH`). Packaged builds don't bundle Claude Code; in `pnpm dev` the SDK's bundled copy is used as a fallback.
+Replai looks for `claude` in `~/.local/bin`, `~/.claude/local`, `/opt/homebrew/bin`, `/usr/local/bin`, then your login shell's `PATH`. Packaged builds don't bundle Claude Code; in `pnpm dev` the SDK's bundled copy is used as a fallback.
 
 > Anthropic doesn't allow third-party products to offer claude.ai login without approval. This provider is meant for your own, locally built copy of Replai — don't ship it to others with subscription login enabled.
 
