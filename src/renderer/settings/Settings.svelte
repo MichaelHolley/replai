@@ -40,7 +40,7 @@
     const config = await window.api.saveConfig({ provider: id })
     provider = config.provider
     modelId = config.modelId
-    if (provider === 'claude-code' && !claudeStatus) void checkClaude()
+    if (provider === 'claude-code') void checkClaude()
   }
 
   async function checkClaude(): Promise<void> {

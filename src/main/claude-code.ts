@@ -16,7 +16,7 @@ import { buildSystemPrompt, type ReplyRequest } from './prompt'
 const LOGIN_HINT = 'Run `claude` in a terminal and sign in with /login.'
 const INSTALL_HINT = 'Install Claude Code (claude.com/claude-code), then sign in with /login.'
 
-// Finder-launched apps get a minimal PATH, so look in the usual install locations first.
+// Used when the shell lookup fails, e.g. `claude` is a shell alias rather than a file.
 const KNOWN_PATHS = [
   join(homedir(), '.local/bin/claude'),
   join(homedir(), '.claude/local/claude'),
@@ -24,13 +24,20 @@ const KNOWN_PATHS = [
   '/usr/local/bin/claude'
 ]
 
+const SHELL_MARKER = '__replai__'
+
+interface ClaudeInstall {
+  executable: string | undefined
+  path: string | undefined
+}
+
 /**
  * Generates replies through the user's local Claude Code install and its login
  * (subscription or API key), via the Claude Agent SDK. Runs as a plain one-turn
  * chat: no tools, no user settings, nothing persisted to disk.
  */
 export class ClaudeCodeService {
-  private executablePath: string | undefined
+  private install: ClaudeInstall | undefined
 
   /**
    * Streams a single reply with the same event contract as OpenRouterService:
@@ -53,8 +60,9 @@ export class ClaudeCodeService {
       emit({ type: 'token', requestId, text })
     }
 
+    let q: Query | undefined
     try {
-      const q = query({
+      q = query({
         prompt: imageMessage(params),
         options: {
           ...(await this.baseOptions()),
@@ -102,6 +110,7 @@ export class ClaudeCodeService {
       emit({ type: 'error', requestId, error: classifyThrown(err) })
     } finally {
       signal.removeEventListener('abort', onAbort)
+      q?.close()
     }
   }
 
@@ -132,28 +141,38 @@ export class ClaudeCodeService {
   }
 
   private async baseOptions(): Promise<Options> {
+    const { executable, path } = await this.resolveInstall()
     return {
-      pathToClaudeCodeExecutable: await this.resolveExecutable(),
+      pathToClaudeCodeExecutable: executable,
       cwd: app.getPath('temp'),
       tools: [],
       maxTurns: 1,
       settingSources: [],
       strictMcpConfig: true,
       persistSession: false,
-      env: { ...process.env, CLAUDE_AGENT_SDK_CLIENT_APP: `replai/${app.getVersion()}` }
+      env: {
+        ...process.env,
+        PATH: path ?? process.env.PATH,
+        CLAUDE_AGENT_SDK_CLIENT_APP: `replai/${app.getVersion()}`
+      }
     }
   }
 
   /**
-   * Prefers the user's installed `claude`. Falls back to the SDK's bundled binary,
-   * which only exists in dev (packaged builds exclude it — it's ~300 MB).
-   * Only a found path is cached, so installing Claude Code later is picked up.
+   * Finds the user's installed `claude` and their shell's PATH. Finder-launched apps
+   * get a minimal PATH, so npm/nvm installs (Node scripts) couldn't find `node` without it.
+   * Falls back to the SDK's bundled binary, which only exists in dev (packaged builds
+   * exclude it — it's ~300 MB). Only a found install is cached, so installing later is picked up.
    */
-  private async resolveExecutable(): Promise<string | undefined> {
-    if (this.executablePath) return this.executablePath
-    const found = KNOWN_PATHS.find((p) => existsSync(p)) ?? (await findInLoginShell())
-    if (found) this.executablePath = found
-    return found
+  private async resolveInstall(): Promise<ClaudeInstall> {
+    if (this.install) return this.install
+    const shell = await readLoginShell()
+    const install = {
+      executable: shell.claude ?? KNOWN_PATHS.find((p) => existsSync(p)),
+      path: shell.path
+    }
+    if (install.executable) this.install = install
+    return install
   }
 }
 
@@ -182,27 +201,31 @@ async function* waitForAbort(signal: AbortSignal): AsyncGenerator<SDKUserMessage
   await new Promise<void>((resolve) => signal.addEventListener('abort', () => resolve()))
 }
 
-function findInLoginShell(): Promise<string | undefined> {
+// Interactive (-i) so ~/.zshrc runs too: that's where nvm and most PATH edits live.
+function readLoginShell(): Promise<{ claude?: string; path?: string }> {
   const shell = process.env.SHELL || '/bin/zsh'
+  const script = `printf '${SHELL_MARKER}%s\\n${SHELL_MARKER}%s\\n' "$(command -v claude)" "$PATH"`
   return new Promise((resolve) => {
-    execFile(shell, ['-lc', 'command -v claude'], { timeout: 5000 }, (_err, stdout) => {
-      // Shell profiles can print banners before the path, so pick the first line that is a real file.
-      const path = stdout
+    execFile(shell, ['-ilc', script], { timeout: 5000 }, (_err, stdout) => {
+      // Shell profiles can print banners, so only read the marked lines.
+      const [claude, path] = stdout
         .split('\n')
-        .map((line) => line.trim())
-        .find((line) => isAbsolute(line) && existsSync(line))
-      resolve(path)
+        .filter((line) => line.startsWith(SHELL_MARKER))
+        .map((line) => line.slice(SHELL_MARKER.length).trim())
+      resolve({
+        claude: claude && isAbsolute(claude) && existsSync(claude) ? claude : undefined,
+        path: path || undefined
+      })
     })
   })
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Claude Code did not respond in time.')), ms)
-    )
-  ])
+  let timer: NodeJS.Timeout | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('Claude Code did not respond in time.')), ms)
+  })
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
 }
 
 function classifyAssistantError(error: SDKAssistantMessageError): StreamError {
@@ -219,7 +242,7 @@ function classifyAssistantError(error: SDKAssistantMessageError): StreamError {
       return { kind: 'rate_limit', message: 'Claude usage limit reached. Try again later.' }
     case 'overloaded':
     case 'server_error':
-      return { kind: 'model', message: 'Claude is overloaded or having issues. Try again shortly.' }
+      return { kind: 'unknown', message: 'Claude is overloaded or having issues. Try again shortly.' }
     case 'model_not_found':
       return { kind: 'model', message: 'Model unavailable for this account. Try another model.' }
     default:
