@@ -26,6 +26,10 @@ const KNOWN_PATHS = [
 
 const SHELL_MARKER = '__replai__'
 
+// The SDK's messages for a missing or unlaunchable CLI; 127 is an npm shim whose `node` is gone.
+const CLI_UNAVAILABLE =
+  /Native CLI binary|(binary|executable) not found|failed to launch|Failed to spawn|exited with code 127/i
+
 interface ClaudeInstall {
   executable: string | undefined
   path: string | undefined
@@ -162,10 +166,11 @@ export class ClaudeCodeService {
    * Finds the user's installed `claude` and their shell's PATH. Finder-launched apps
    * get a minimal PATH, so npm/nvm installs (Node scripts) couldn't find `node` without it.
    * Falls back to the SDK's bundled binary, which only exists in dev (packaged builds
-   * exclude it — it's ~300 MB). Only a found install is cached, so installing later is picked up.
+   * exclude it — it's ~300 MB). Only a found install is cached, and it's re-resolved once
+   * its file is gone, so installing, moving or removing `claude` later is picked up.
    */
   private async resolveInstall(): Promise<ClaudeInstall> {
-    if (this.install) return this.install
+    if (this.install?.executable && existsSync(this.install.executable)) return this.install
     const shell = await readLoginShell()
     const install = {
       executable: shell.claude ?? KNOWN_PATHS.find((p) => existsSync(p)),
@@ -206,7 +211,9 @@ function readLoginShell(): Promise<{ claude?: string; path?: string }> {
   const shell = process.env.SHELL || '/bin/zsh'
   const script = `printf '${SHELL_MARKER}%s\\n${SHELL_MARKER}%s\\n' "$(command -v claude)" "$PATH"`
   return new Promise((resolve) => {
-    execFile(shell, ['-ilc', script], { timeout: 5000 }, (_err, stdout) => {
+    // Interactive shells ignore SIGTERM, so only SIGKILL enforces the timeout.
+    const options = { timeout: 5000, killSignal: 'SIGKILL' } as const
+    const child = execFile(shell, ['-ilc', script], options, (_err, stdout) => {
       // Shell profiles can print banners, so only read the marked lines.
       const [claude, path] = stdout
         .split('\n')
@@ -217,6 +224,8 @@ function readLoginShell(): Promise<{ claude?: string; path?: string }> {
         path: path || undefined
       })
     })
+    // EOF on stdin, so a `read` in the user's rc files returns instead of blocking.
+    child.stdin?.end()
   })
 }
 
@@ -252,7 +261,7 @@ function classifyAssistantError(error: SDKAssistantMessageError): StreamError {
 
 function classifyThrown(err: unknown): StreamError {
   const message = err instanceof Error ? err.message : String(err)
-  if (/Native CLI binary|ENOENT|spawn/i.test(message)) {
+  if (CLI_UNAVAILABLE.test(message)) {
     return { kind: 'auth', message: `Claude Code not found. ${INSTALL_HINT}` }
   }
   if (/network|ENOTFOUND|ECONNREFUSED|ETIMEDOUT/i.test(message)) {
