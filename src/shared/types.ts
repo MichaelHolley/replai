@@ -3,10 +3,14 @@
  * No runtime dependencies on Electron here — safe to import from either side.
  */
 
-/** Curated, vision-capable OpenRouter models offered in Settings. */
+/** Backend that generates replies. */
+export type ProviderId = 'openrouter' | 'claude-code'
+
+/** Curated, vision-capable models offered in Settings. */
 export interface ModelOption {
-  /** OpenRouter model id, e.g. "openai/gpt-4o-mini". */
+  /** Provider-specific model id, e.g. "openai/gpt-6-luna" or "haiku". */
   id: string
+  provider: ProviderId
   /** Human label shown in the picker. */
   label: string
   /** Short note (speed/cost/quality) shown under the label. */
@@ -25,6 +29,7 @@ export interface StylePreset {
 
 /** Persisted, non-secret configuration (secret key lives in safeStorage). */
 export interface AppConfig {
+  provider: ProviderId
   modelId: string
   presetId: string
 }
@@ -89,6 +94,12 @@ export interface KeyValidationResult {
   message: string
 }
 
+/** Whether the local Claude Code install is usable, with a user-facing explanation. */
+export interface ClaudeCodeStatus {
+  ok: boolean
+  message: string
+}
+
 /** Snapshot of settings shown in the Settings window. */
 export interface SettingsSnapshot {
   hasKey: boolean
@@ -116,6 +127,7 @@ export const IPC = {
   SettingsSaveKey: 'settings:save-key',
   SettingsSaveConfig: 'settings:save-config',
   SettingsValidateKey: 'settings:validate-key',
+  SettingsCheckClaudeCode: 'settings:check-claude-code',
   SettingsOpen: 'settings:open',
   // onboarding
   PermissionStatus: 'permission:status',

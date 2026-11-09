@@ -1,9 +1,19 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import type { SettingsSnapshot } from '@shared/types'
+  import type { ClaudeCodeStatus, ProviderId, SettingsSnapshot } from '@shared/types'
+
+  const PROVIDERS: { id: ProviderId; label: string; note: string }[] = [
+    { id: 'openrouter', label: 'OpenRouter API key', note: 'Bring your own key' },
+    {
+      id: 'claude-code',
+      label: 'Claude Code login',
+      note: 'Uses Claude Code signed in on this Mac — for personal use'
+    }
+  ]
 
   let snapshot = $state<SettingsSnapshot | null>(null)
 
+  let provider = $state<ProviderId>('openrouter')
   let modelId = $state('')
   let presetId = $state('')
 
@@ -11,12 +21,38 @@
   let keyStatus = $state<'idle' | 'saving' | 'ok' | 'error'>('idle')
   let keyMessage = $state('')
 
+  let claudeStatus = $state<ClaudeCodeStatus | null>(null)
+  let checkingClaude = $state(false)
+
+  const providerModels = $derived(snapshot?.models.filter((m) => m.provider === provider) ?? [])
+
   onMount(async () => {
     const s = await window.api.getSettings()
     snapshot = s
+    provider = s.config.provider
     modelId = s.config.modelId
     presetId = s.config.presetId
+    if (provider === 'claude-code') void checkClaude()
   })
+
+  async function saveProvider(id: ProviderId): Promise<void> {
+    if (id === provider) return
+    const config = await window.api.saveConfig({ provider: id })
+    provider = config.provider
+    modelId = config.modelId
+    if (provider === 'claude-code') void checkClaude()
+  }
+
+  async function checkClaude(): Promise<void> {
+    checkingClaude = true
+    try {
+      claudeStatus = await window.api.checkClaudeCode()
+    } catch {
+      claudeStatus = { ok: false, message: 'Could not check Claude Code. Try again.' }
+    } finally {
+      checkingClaude = false
+    }
+  }
 
   async function saveModel(id: string): Promise<void> {
     modelId = id
@@ -49,44 +85,80 @@
     <h1>Replai Settings</h1>
 
     <section class="card">
-      <h2>OpenRouter API key</h2>
-      <p class="muted">
-        Stored securely in your macOS Keychain. It never leaves your machine except
-        to OpenRouter when generating a reply.
-      </p>
-      <div class="row">
-        <input
-          bind:value={keyInput}
-          type="password"
-          class="field"
-          placeholder={snapshot.hasKey ? '•••••••••  (a key is saved)' : 'sk-or-…'}
-          spellcheck="false"
-          autocomplete="off"
-          onkeydown={(e) => e.key === 'Enter' && saveKey()}
-        />
-        <button
-          class="btn"
-          disabled={keyStatus === 'saving' || !keyInput.trim()}
-          onclick={saveKey}
-        >
-          {keyStatus === 'saving' ? 'Validating…' : 'Validate & Save'}
-        </button>
+      <h2>Provider</h2>
+      <div class="options">
+        {#each PROVIDERS as option (option.id)}
+          <button
+            class="option"
+            class:active={provider === option.id}
+            onclick={() => saveProvider(option.id)}
+          >
+            <span class="opt-label">{option.label}</span>
+            <span class="opt-note">{option.note}</span>
+          </button>
+        {/each}
       </div>
-      {#if keyMessage}
-        <p class="status" class:ok={keyStatus === 'ok'} class:err={keyStatus === 'error'}>
-          {keyMessage}
-        </p>
-      {:else if snapshot.hasKey}
-        <p class="status ok">A validated key is saved.</p>
-      {:else}
-        <p class="status err">No key yet — add one to start generating replies.</p>
-      {/if}
     </section>
+
+    {#if provider === 'openrouter'}
+      <section class="card">
+        <h2>OpenRouter API key</h2>
+        <p class="muted">
+          Stored securely in your macOS Keychain. It never leaves your machine except
+          to OpenRouter when generating a reply.
+        </p>
+        <div class="row">
+          <input
+            bind:value={keyInput}
+            type="password"
+            class="field"
+            placeholder={snapshot.hasKey ? '•••••••••  (a key is saved)' : 'sk-or-…'}
+            spellcheck="false"
+            autocomplete="off"
+            onkeydown={(e) => e.key === 'Enter' && saveKey()}
+          />
+          <button
+            class="btn"
+            disabled={keyStatus === 'saving' || !keyInput.trim()}
+            onclick={saveKey}
+          >
+            {keyStatus === 'saving' ? 'Validating…' : 'Validate & Save'}
+          </button>
+        </div>
+        {#if keyMessage}
+          <p class="status" class:ok={keyStatus === 'ok'} class:err={keyStatus === 'error'}>
+            {keyMessage}
+          </p>
+        {:else if snapshot.hasKey}
+          <p class="status ok">A validated key is saved.</p>
+        {:else}
+          <p class="status err">No key yet — add one to start generating replies.</p>
+        {/if}
+      </section>
+    {:else}
+      <section class="card">
+        <h2>Claude Code</h2>
+        <p class="muted">
+          Replies are generated by your local Claude Code install, using the account you're signed
+          in with. Screenshots go to Anthropic only.
+        </p>
+        <div class="row spread">
+          {#if checkingClaude}
+            <p class="status">Checking Claude Code…</p>
+          {:else if claudeStatus}
+            <p class="status" class:ok={claudeStatus.ok} class:err={!claudeStatus.ok}>
+              {claudeStatus.message}
+            </p>
+          {/if}
+          <button class="btn" disabled={checkingClaude} onclick={checkClaude}>Check again</button>
+        </div>
+      </section>
+    {/if}
 
     <section class="card">
       <h2>Model</h2>
       <div class="options">
-        {#each snapshot.models as model (model.id)}
+        {#each providerModels as model (model.id)}
           <button
             class="option"
             class:active={modelId === model.id}
@@ -200,6 +272,9 @@
   .status {
     margin: 10px 0 0;
     font-size: 12px;
+  }
+  .row .status {
+    margin: 0;
   }
   .status.ok {
     color: var(--ok);

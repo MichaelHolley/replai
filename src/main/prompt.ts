@@ -1,4 +1,15 @@
 import { getPreset } from "@shared/styles";
+import type { CapturedImage } from "@shared/types";
+
+/** Provider-agnostic input for generating one reply. */
+export interface ReplyRequest {
+  modelId: string;
+  presetId: string;
+  intent: string;
+  image: CapturedImage;
+  requestId: string;
+  signal: AbortSignal;
+}
 
 /**
  * Builds the system prompt (plan §6).
