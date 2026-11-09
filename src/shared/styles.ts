@@ -4,48 +4,54 @@ export const PRESETS: StylePreset[] = [
   {
     id: "professional",
     label: "Professional",
-    description: "Polished, courteous, workplace-appropriate",
+    description: "Formal, courteous, workplace-appropriate",
     instruction:
-      "polished and professional — complete sentences, precise word choice, " +
-      "courteous but not effusive, and no slang, emoji, or exclamation marks; " +
-      "plain business English rather than jargon or buzzwords",
+      "polished and professional — complete, well-formed sentences, precise " +
+      "word choice, and a brief courteous opening or close where it fits; no " +
+      "slang, emoji, or exclamation marks; plain business English rather than " +
+      "jargon or buzzwords, and emotionally neutral rather than effusive",
   },
   {
     id: "casual",
     label: "Casual",
-    description: "Relaxed and conversational",
+    description: "Relaxed, like texting a friend",
     instruction:
-      "relaxed and casual — contractions, short sentences, the occasional " +
-      "fragment, everyday words, and no greeting or sign-off; friendly and " +
-      "light rather than affectionate or gushing",
+      "relaxed and casual, like texting a friend — contractions, short " +
+      "sentences, the occasional fragment, everyday words, and no greeting or " +
+      "sign-off; easygoing and matter-of-fact rather than emotionally " +
+      "attentive, and friendly without teasing or flirting",
   },
   {
     id: "direct",
     label: "Direct",
-    description: "Straight to the point, no padding",
+    description: "Says it plainly, no softening",
     instruction:
-      "blunt and direct — lead with the point in the first sentence and then " +
-      "stop, in one to three sentences with no preamble and no hedging " +
-      '("I think", "maybe", "just"); matter-of-fact without tipping into curt ' +
-      "or rude",
+      "direct and unsoftened — open with the answer, decision, or request, " +
+      "then give only the detail that supports it; no pleasantries, " +
+      'apologies, hedges ("I think", "maybe", "just"), or cushioning, and ' +
+      "state disagreement or a no plainly; match the conversation's level of " +
+      "formality, and stay matter-of-fact rather than curt or rude",
   },
   {
     id: "warm",
     label: "Warm",
-    description: "Sincere and considerate",
+    description: "Caring, attentive, gently softened",
     instruction:
-      "warm and sincere — acknowledge the other person’s situation before " +
-      "answering, use considerate and personal phrasing, and soften hard news " +
-      "without burying it; genuine and grounded rather than flirtatious",
+      "warm and caring — acknowledge the other person's situation or " +
+      "feelings before answering, show genuine interest or appreciation, and " +
+      "soften hard news without burying it; match the conversation's level of " +
+      "formality, and stay sincere and earnest rather than playful or " +
+      "flirtatious",
   },
   {
     id: "flirty",
     label: "Flirty",
     description: "Playful, teasing, charming",
     instruction:
-      "playful and flirty — light teasing, a little charm, relaxed grammar, " +
-      "and the occasional emoji; fun and confident rather than earnest, and " +
-      "never explicit",
+      "playful and flirty — light teasing, a compliment or playful callback, " +
+      "a hint of interest in the other person, relaxed grammar, and the " +
+      "occasional emoji; confident and fun rather than earnest or sentimental, " +
+      "and never explicit",
   },
   {
     id: "corporate",
